@@ -2,64 +2,31 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Roles extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
+    protected $table = 'roles';
+
     protected $fillable = [
         'name',
         'description',
-        'permissions',
+        'permissions'
+    ];
+
+    protected $casts = [
+        'permissions' => 'array',
     ];
 
     /**
-     * The attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'permissions' => 'array',
-        ];
-    }
-
-    /**
-     * Get the users for this role.
+     * Relación con usuarios - un rol tiene muchos usuarios
+     * CORREGIR: especificar la clave foránea correcta
      */
     public function users()
     {
-        return $this->hasMany(User::class);
-    }
-
-    /**
-     * Check if role has a specific permission
-     */
-    public function hasPermission($permission)
-    {
-        return in_array($permission, $this->permissions ?? []);
-    }
-
-    /**
-     * Roles predefinidos del sistema
-     */
-    public static function getSystemRoles()
-    {
-        return [
-            'contratista' => 'Contratista',
-            'supervisor' => 'Supervisor',
-            'alcalde' => 'Alcalde',
-            'ordenador_gasto' => 'Ordenador del Gasto',
-            'tesoreria' => 'Tesorería',
-            'contratacion' => 'Contratación'
-        ];
+        return $this->hasMany(User::class, 'role_id', 'id');
     }
 }
