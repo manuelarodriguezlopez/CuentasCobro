@@ -92,6 +92,142 @@ class RolControler extends Controller
      */
 
     /**
+     * Mostrar formulario de edición de un rol
+     */
+    public function edit(Roles $role)
+    {
+        if (!Auth::user()->hasRole('alcalde')) {
+            return redirect()->route('roles.index')->with('error', 'No tienes permisos para editar roles.');
+        }
+
+        return view('roles.edit', compact('role'));
+    }
+
+    /**
+     * Actualizar un rol existente
+     */
+    public function update(Request $request, Roles $role)
+    {
+        if (!Auth::user()->hasRole('alcalde')) {
+            return redirect()->route('roles.index')->with('error', 'No tienes permisos para actualizar roles.');
+        }
+
+        $isSystemRole = in_array($role->name, ['contratista', 'supervisor', 'alcalde', 'ordenador_gasto', 'tesoreria', 'contratacion']);
+
+        $rules = [
+            'permissions' => 'array',
+        ];
+
+        if (!$isSystemRole) {
+            $rules = array_merge($rules, [
+                'name' => 'required|string|max:255|regex:/^[a-z_]+$/|unique:roles,name,' . $role->id,
+                'description' => 'required|string|max:500',
+            ]);
+        } else {
+            // Asegurar presencia (vienen como hidden en la vista), pero no se modifican
+            $rules = array_merge($rules, [
+                'name' => 'required|string',
+                'description' => 'required|string',
+            ]);
+        }
+
+        $validated = $request->validate($rules);
+
+        if ($isSystemRole) {
+            // Solo permisos en roles del sistema
+            $role->permissions = $request->input('permissions', []);
+        } else {
+            $role->name = $request->input('name');
+            $role->description = $request->input('description');
+            $role->permissions = $request->input('permissions', []);
+        }
+
+        $role->save();
+
+        return redirect()->route('roles.show', $role->id)->with('success', 'Rol actualizado correctamente.');
+    }
+
+    /**
+     * Eliminar un rol
+     */
+    public function destroy(Roles $role)
+    {
+        if (!Auth::user()->hasRole('alcalde')) {
+            return redirect()->route('roles.index')->with('error', 'No tienes permisos para eliminar roles.');
+        }
+
+        if (in_array($role->name, ['contratista', 'supervisor', 'alcalde', 'ordenador_gasto', 'tesoreria', 'contratacion'])) {
+            return redirect()->route('roles.index')->with('error', 'No se pueden eliminar roles del sistema.');
+        }
+
+        if ($role->users()->count() > 0) {
+            return redirect()->route('roles.index')->with('error', 'No se puede eliminar un rol con usuarios asignados.');
+        }
+
+        $role->delete();
+
+        return redirect()->route('roles.index')->with('success', 'Rol eliminado correctamente.');
+    }
+
+    /**
+     * Asignar un rol a un usuario (AJAX)
+     */
+    public function assignRole(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['alcalde', 'contratacion'])) {
+            return response()->json(['success' => false, 'error' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'role_id' => 'required|exists:roles,id',
+        ]);
+
+        $user = User::find($data['user_id']);
+        $user->role_id = $data['role_id'];
+        $user->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Remover rol de un usuario (AJAX)
+     */
+    public function removeRole(Request $request)
+    {
+        if (!Auth::user()->hasAnyRole(['alcalde', 'contratacion'])) {
+            return response()->json(['success' => false, 'error' => 'No autorizado'], 403);
+        }
+
+        $data = $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $user = User::find($data['user_id']);
+        $user->role_id = null;
+        $user->save();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Obtener usuarios sin rol (AJAX)
+     */
+    public function getUsersWithoutRole()
+    {
+        if (!Auth::user()->hasAnyRole(['alcalde', 'contratacion'])) {
+            return response()->json(['success' => false, 'error' => 'No autorizado'], 403);
+        }
+
+        $users = User::whereNull('role_id')
+            ->select('id', 'name', 'email')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $users]);
+    }
+
+    /**
      * Obtener permisos disponibles
      */
     private function getAvailablePermissions()
